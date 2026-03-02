@@ -7,16 +7,25 @@ An agentic AI system that automatically generates patches for Linux kernel bugs.
 KernelPatcher uses an 8-agent hierarchy where each layer handles a different level of abstraction:
 
 ```
-Level 0  Orchestrator ─────────────────────────────────────────────
-              │         Directs the Planner → Coder → Reviewer
-              │         cycle (up to 3 iterations)
-              ▼
-Level 1  Planner    Coder    Reviewer ─────────────────────────────
-              │       Creates plan, implements code, reviews output
-              ▼
-Level 2  Elixir   Web Summary   Code Summary   General ────────────
-                   Source code lookup, kernel.org search,
-                   code analysis, delegated research
+                        ┌──────────────┐
+Level 0                 │ Orchestrator │
+                        └──────┬───────┘
+                               │  Directs the Planner → Coder → Reviewer
+                               │  cycle (up to 3 iterations)
+                 ┌─────────────┼─────────────┐
+                 ▼             ▼             ▼
+Level 1    ┌─────────┐   ┌─────────┐   ┌──────────┐
+           │ Planner │   │  Coder  │   │ Reviewer │
+           └────┬────┘   └────┬────┘   └────┬─────┘
+                │             │             │
+                └─────────────┼─────────────┘
+                 ┌────────┬───┴───┬────────┐
+                 ▼        ▼       ▼        ▼
+Level 2    ┌────────┐ ┌─────┐ ┌──────┐ ┌─────────┐
+           │ Elixir │ │ Web │ │ Code │ │ General │
+           └────────┘ └─────┘ └──────┘ └─────────┘
+           Source code lookup, kernel.org search,
+           code analysis, delegated research
 ```
 
 Agents communicate via HTTP through a FastAPI server. Each agent is backed by an LLM with specialized system prompts and tools scoped to its role.
@@ -105,8 +114,8 @@ All 86 tests run with mocked API calls and use zero tokens.
 
 Evaluated on 227 kernel bugs from kBench across File System, Networking, Device Drivers, Memory Management, Security, and Virtualization subsystems:
 
-| Model | Correct | Incorrect | Not Applied |
-|-------|---------|-----------|-------------|
+| Model | Fixed Bug | Did Not Fix Bug | Compilation Error |
+|-------|-----------|-----------------|-------------------|
 | Custom (8-agent) | 26 (11.5%) | 45 (19.8%) | 156 (68.7%) |
 | Claude (sonnet-4) | 14 (6.2%) | 40 (17.6%) | 173 (76.2%) |
 | GPT-4o | 14 (6.2%) | 27 (11.9%) | 186 (81.9%) |
