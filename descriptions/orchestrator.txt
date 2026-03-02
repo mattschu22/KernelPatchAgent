@@ -1,0 +1,1 @@
+The Orchestrator Agent is responsible for communicating with the user. It will call the Planner, Coder, and Reviewer Agents in that order to generate patches for the issues provided by the human user.

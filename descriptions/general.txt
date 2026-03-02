@@ -1,0 +1,1 @@
+The General tool is a general agent to which subtasks can be delegated. It can be called with a short input string representing a well-defined task (such as summarization, research, or analysis) and it will return a short text paragraph with the results of your task. Its use is to keep your context window small and focused.

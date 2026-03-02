@@ -1,0 +1,1 @@
+The Coder agent will take as input a plan (in English) to generate a crash resolution patch. It will then write and return the code for the patch in accordance to the plan to the caller.

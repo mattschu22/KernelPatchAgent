@@ -1,0 +1,1 @@
+The Reviewer Agent is responsible for reviewing the code provided by the Coder agent to analyze potential issues with code correctness, security, or programming style. It may call the Code Analysis tool for assistance with these tasks. It takes the patch code as input and will provide a summary of its analysis to the caller.
