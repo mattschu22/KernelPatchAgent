@@ -9,7 +9,7 @@ from typing import Dict, List
 
 
 class ModelBackend(str, Enum):
-    GPT = "gpt-4o"
+    GPT = "gpt-4.1"
     CLAUDE = "sonnet-4"
     CUSTOM = "custom"
 

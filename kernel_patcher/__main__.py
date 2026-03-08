@@ -50,7 +50,7 @@ def main():
     # infer
     infer_p = sub.add_parser("infer", help="Run inference on kernel bugs")
     infer_p.add_argument("--data", required=True, help="Path to bug data JSON")
-    infer_p.add_argument("--model", default="custom", choices=["gpt-4o", "sonnet-4", "custom"])
+    infer_p.add_argument("--model", default="custom", choices=["gpt-4.1", "sonnet-4", "custom"])
     infer_p.add_argument("--output", default="responses.json")
     infer_p.add_argument("--workers", type=int, default=8)
     infer_p.add_argument("--limit", type=int, default=None, help="Limit number of bugs to process")

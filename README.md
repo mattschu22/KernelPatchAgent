@@ -37,7 +37,7 @@ The pipeline supports three model backends for patch generation:
 | Backend | Model | Description |
 |---------|-------|-------------|
 | `custom` | Multi-agent system | 8-agent hierarchy via local server |
-| `gpt-4o` | OpenAI GPT-4o | Single-model direct inference |
+| `gpt-4.1` | OpenAI GPT-4.1 | Single-model direct inference |
 | `sonnet-4` | Anthropic Claude | Single-model direct inference |
 
 ## Project Structure
@@ -118,4 +118,4 @@ Evaluated on 227 kernel bugs from kBench across File System, Networking, Device 
 |-------|-----------|-----------------|-------------------|
 | Custom (8-agent) | 26 (11.5%) | 45 (19.8%) | 156 (68.7%) |
 | Claude (sonnet-4) | 14 (6.2%) | 40 (17.6%) | 173 (76.2%) |
-| GPT-4o | 14 (6.2%) | 27 (11.9%) | 186 (81.9%) |
+| GPT-4.1 | 14 (6.2%) | 27 (11.9%) | 186 (81.9%) |

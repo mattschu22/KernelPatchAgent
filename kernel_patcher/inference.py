@@ -22,9 +22,9 @@ class ModelClient(Protocol):
 
 
 class OpenAIClient:
-    """Inference via OpenAI API (gpt-4o)."""
+    """Inference via OpenAI API (gpt-4.1)."""
 
-    def __init__(self, model: str = "gpt-4o"):
+    def __init__(self, model: str = "gpt-4.1"):
         from openai import OpenAI
 
         self._client = OpenAI()

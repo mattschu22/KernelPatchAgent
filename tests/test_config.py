@@ -25,7 +25,7 @@ class TestSlugify:
 
 class TestModelBackend:
     def test_values(self):
-        assert ModelBackend.GPT.value == "gpt-4o"
+        assert ModelBackend.GPT.value == "gpt-4.1"
         assert ModelBackend.CLAUDE.value == "sonnet-4"
         assert ModelBackend.CUSTOM.value == "custom"
 
