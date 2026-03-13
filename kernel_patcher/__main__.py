@@ -14,7 +14,7 @@ import sys
 from kernel_patcher.config import ModelBackend, PipelineConfig
 
 
-def cmd_infer(args):
+def cmd_infer(args: argparse.Namespace) -> None:
     from kernel_patcher.pipeline import KernelPatchPipeline
 
     config = PipelineConfig(
@@ -33,7 +33,7 @@ def cmd_infer(args):
     print(f"Saved {len(responses)} responses to {args.output}")
 
 
-def cmd_serve(args):
+def cmd_serve(args: argparse.Namespace) -> None:
     import uvicorn
 
     from kernel_patcher.agents.server import create_app
@@ -43,7 +43,7 @@ def cmd_serve(args):
     uvicorn.run(app, host="0.0.0.0", port=args.port)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="KernelPatcher pipeline")
     sub = parser.add_subparsers(dest="command")
 

@@ -1,7 +1,5 @@
 """Tests for kernel_patcher.models — zero API tokens."""
 
-import pytest
-
 from kernel_patcher.models import (
     BugInstance,
     EvalResult,

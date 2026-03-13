@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List
 
 from kernel_patcher.config import PipelineConfig
 from kernel_patcher.diff import DiffGenerator
@@ -39,16 +38,17 @@ class KernelPatchPipeline:
         self.parser = Parser()
         self.diff_gen = DiffGenerator()
 
-    def load_bugs(self, data_path: str | Path | None = None) -> List[BugInstance]:
+    def load_bugs(self, data_path: str | Path | None = None) -> list[BugInstance]:
         """Load bug instances from a JSON data file.
 
         Expected format: list of dicts with keys: instance_id, issue, code.
         """
         if data_path is None:
+            assert self.config.data_dir is not None
             data_path = self.config.data_dir / "data.json"
         data_path = Path(data_path)
 
-        with open(data_path, "r") as f:
+        with open(data_path) as f:
             raw = json.load(f)
 
         bugs = []
@@ -64,21 +64,23 @@ class KernelPatchPipeline:
             )
         return bugs
 
-    def load_patch_types(self) -> List[List]:
+    def load_patch_types(self) -> list[list[str]]:
         """Load the patch_types.json benchmark categorization."""
+        assert self.config.data_dir is not None
         path = self.config.data_dir / "patch_types.json"
-        with open(path, "r") as f:
-            return json.load(f)
+        with open(path) as f:
+            result: list[list[str]] = json.load(f)
+            return result
 
-    def run_inference(self, bugs: List[BugInstance]) -> List[PatchResponse]:
+    def run_inference(self, bugs: list[BugInstance]) -> list[PatchResponse]:
         """Run model inference on a list of bugs."""
         return run_inference(bugs, self.config, self.client)
 
     def generate_diffs(
-        self, bugs: List[BugInstance], responses: List[PatchResponse]
-    ) -> List[PatchResponse]:
+        self, bugs: list[BugInstance], responses: list[PatchResponse]
+    ) -> list[PatchResponse]:
         """Generate git diffs for each response by comparing original and patched files."""
-        for bug, resp in zip(bugs, responses):
+        for bug, resp in zip(bugs, responses, strict=True):
             if not resp.patched_files:
                 continue
             try:
@@ -91,13 +93,13 @@ class KernelPatchPipeline:
 
     def build_eval_jobs(
         self,
-        bugs: List[BugInstance],
-        responses: List[PatchResponse],
-        commits: Dict[str, str] | None = None,
-        reproducers: Dict[str, str] | None = None,
-        configs: Dict[str, str] | None = None,
-        syz_checks: Dict[str, str] | None = None,
-    ) -> List[EvalJob]:
+        bugs: list[BugInstance],
+        responses: list[PatchResponse],
+        commits: dict[str, str] | None = None,
+        reproducers: dict[str, str] | None = None,
+        configs: dict[str, str] | None = None,
+        syz_checks: dict[str, str] | None = None,
+    ) -> list[EvalJob]:
         """Build evaluation jobs from inference responses.
 
         The commits, reproducers, configs, and syz_checks dicts map instance_id
@@ -110,7 +112,7 @@ class KernelPatchPipeline:
         syz_checks = syz_checks or {}
 
         jobs = []
-        for i, (bug, resp) in enumerate(zip(bugs, responses)):
+        for i, (bug, resp) in enumerate(zip(bugs, responses, strict=True)):
             iid = bug.instance_id
             if not resp.diff:
                 continue
@@ -128,7 +130,7 @@ class KernelPatchPipeline:
             )
         return jobs
 
-    def evaluate(self, jobs: List[EvalJob]) -> List[EvalResult]:
+    def evaluate(self, jobs: list[EvalJob]) -> list[EvalResult]:
         """Submit jobs to kSuite and poll until completion."""
         ksuite = KSuiteClient(self.config.ksuite_url)
         jobs = ksuite.submit_all(jobs, self.config)
@@ -137,12 +139,12 @@ class KernelPatchPipeline:
 
     def run(
         self,
-        bugs: List[BugInstance],
+        bugs: list[BugInstance],
         skip_eval: bool = False,
-        commits: Dict[str, str] | None = None,
-        reproducers: Dict[str, str] | None = None,
-        configs: Dict[str, str] | None = None,
-        syz_checks: Dict[str, str] | None = None,
+        commits: dict[str, str] | None = None,
+        reproducers: dict[str, str] | None = None,
+        configs: dict[str, str] | None = None,
+        syz_checks: dict[str, str] | None = None,
     ) -> PipelineResult:
         """Run the full pipeline: inference -> diff -> evaluate.
 
@@ -168,21 +170,19 @@ class KernelPatchPipeline:
 
         if not skip_eval:
             logger.info("Building evaluation jobs")
-            jobs = self.build_eval_jobs(
-                bugs, responses, commits, reproducers, configs, syz_checks
-            )
+            jobs = self.build_eval_jobs(bugs, responses, commits, reproducers, configs, syz_checks)
             logger.info("Submitting %d jobs for evaluation", len(jobs))
             result.results = self.evaluate(jobs)
 
         return result
 
-    def save_responses(self, responses: List[PatchResponse], path: str | Path) -> None:
+    def save_responses(self, responses: list[PatchResponse], path: str | Path) -> None:
         """Save raw responses to a JSON file."""
         data = [r.raw_response for r in responses]
         with open(path, "w") as f:
             json.dump(data, f)
 
-    def save_results(self, results: List[EvalResult], path: str | Path) -> None:
+    def save_results(self, results: list[EvalResult], path: str | Path) -> None:
         """Save evaluation results to a JSON file."""
         data = results_to_dict(results)
         with open(path, "w") as f:

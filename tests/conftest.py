@@ -3,17 +3,13 @@
 from __future__ import annotations
 
 import json
-import os
 import tempfile
 from pathlib import Path
-from typing import Dict, List
-from unittest.mock import MagicMock
 
 import pytest
 
 from kernel_patcher.config import ModelBackend, PipelineConfig
-from kernel_patcher.models import BugInstance, EvalJob, PatchResponse
-
+from kernel_patcher.models import BugInstance, PatchResponse
 
 # ---------------------------------------------------------------------------
 # Sample data constants
@@ -86,7 +82,7 @@ def tmp_dir():
 
 
 @pytest.fixture
-def sample_bugs() -> List[BugInstance]:
+def sample_bugs() -> list[BugInstance]:
     """A small set of sample bug instances for testing."""
     return [
         BugInstance(
@@ -107,20 +103,29 @@ def sample_bugs() -> List[BugInstance]:
 
 
 @pytest.fixture
-def sample_responses() -> List[PatchResponse]:
+def sample_responses() -> list[PatchResponse]:
     """Sample patch responses matching sample_bugs."""
     return [
         PatchResponse(
             instance_id="bug_001",
             raw_response=SAMPLE_RESPONSE_TEXT,
-            patched_files={"net/smc/smc_sysctl.c": "#include <linux/kernel.h>\nstatic int smc_sysctl_init(void) { int ret = 0; return ret; }\n"},
+            patched_files={
+                "net/smc/smc_sysctl.c": (
+                    "#include <linux/kernel.h>\n"
+                    "static int smc_sysctl_init(void) { int ret = 0; return ret; }\n"
+                ),
+            },
         ),
         PatchResponse(
             instance_id="bug_002",
             raw_response=SAMPLE_MULTI_FILE_RESPONSE,
             patched_files={
-                "fs/ext4/file.c": '#include <linux/fs.h>\nvoid ext4_func(void) { /* patched */ }\n',
-                "fs/ext4/namei.c": '#include <linux/fs.h>\nvoid ext4_namei_func(void) { /* patched */ }\n',
+                "fs/ext4/file.c": (
+                    "#include <linux/fs.h>\nvoid ext4_func(void) { /* patched */ }\n"
+                ),
+                "fs/ext4/namei.c": (
+                    "#include <linux/fs.h>\nvoid ext4_namei_func(void) { /* patched */ }\n"
+                ),
             },
         ),
     ]
@@ -140,10 +145,7 @@ def config(tmp_dir) -> PipelineConfig:
 def data_json(tmp_dir, sample_bugs) -> Path:
     """Write sample bug data to a JSON file and return the path."""
     path = tmp_dir / "data.json"
-    data = [
-        {"instance_id": b.instance_id, "issue": b.issue, "code": b.code}
-        for b in sample_bugs
-    ]
+    data = [{"instance_id": b.instance_id, "issue": b.issue, "code": b.code} for b in sample_bugs]
     path.write_text(json.dumps(data))
     return path
 
@@ -151,10 +153,10 @@ def data_json(tmp_dir, sample_bugs) -> Path:
 class FakeModelClient:
     """A mock model client that returns canned responses without using API tokens."""
 
-    def __init__(self, responses: Dict[str, str] | None = None, default: str = ""):
+    def __init__(self, responses: dict[str, str] | None = None, default: str = ""):
         self._responses = responses or {}
         self._default = default
-        self.calls: List[tuple] = []
+        self.calls: list[tuple] = []
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
         self.calls.append((system_prompt, user_prompt))

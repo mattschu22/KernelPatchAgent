@@ -1,20 +1,12 @@
 """Tests for kernel_patcher.pipeline — all API calls mocked, zero tokens used."""
 
 import json
-import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from kernel_patcher.config import ModelBackend, PipelineConfig
-from kernel_patcher.models import BugInstance, EvalJob, EvalResult, EvalStatus, PatchResponse
+from kernel_patcher.models import EvalJob, EvalResult, EvalStatus, PatchResponse
 from kernel_patcher.pipeline import KernelPatchPipeline
 from tests.conftest import (
-    FakeModelClient,
-    SAMPLE_CODE,
     SAMPLE_CRASH_REPORT,
-    SAMPLE_MULTI_FILE_INPUT,
-    SAMPLE_MULTI_FILE_RESPONSE,
-    SAMPLE_RESPONSE_TEXT,
 )
 
 
@@ -112,6 +104,7 @@ class TestFullPipeline:
                     j.job_id = "fake_id"
                     j.status = "submitted"
                 return jobs
+
             mock_ksuite.submit_all.side_effect = fake_submit
 
             # poll_all marks all as finished
@@ -119,6 +112,7 @@ class TestFullPipeline:
                 for j in jobs:
                     j.status = "finished"
                 return jobs
+
             mock_ksuite.poll_all.side_effect = fake_poll
 
             commits = {b.instance_id: "abc123" for b in sample_bugs}

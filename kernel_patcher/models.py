@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Dict, List
+from enum import StrEnum
 
 
 @dataclass
@@ -14,7 +13,7 @@ class BugInstance:
     instance_id: str
     issue: str
     code: str
-    files: List[str] = field(default_factory=list)
+    files: list[str] = field(default_factory=list)
     category: str = ""
 
 
@@ -24,11 +23,11 @@ class PatchResponse:
 
     instance_id: str
     raw_response: str
-    patched_files: Dict[str, str] = field(default_factory=dict)
+    patched_files: dict[str, str] = field(default_factory=dict)
     diff: str = ""
 
 
-class EvalStatus(str, Enum):
+class EvalStatus(StrEnum):
     CORRECT = "c"
     INCORRECT = "i"
     NOT_APPLIED = "na"
@@ -62,17 +61,17 @@ class EvalJob:
 class PipelineResult:
     """Full result of running the pipeline on a set of bugs."""
 
-    responses: List[PatchResponse] = field(default_factory=list)
-    results: List[EvalResult] = field(default_factory=list)
+    responses: list[PatchResponse] = field(default_factory=list)
+    results: list[EvalResult] = field(default_factory=list)
 
     @property
-    def correct(self) -> List[EvalResult]:
+    def correct(self) -> list[EvalResult]:
         return [r for r in self.results if r.status == EvalStatus.CORRECT]
 
     @property
-    def incorrect(self) -> List[EvalResult]:
+    def incorrect(self) -> list[EvalResult]:
         return [r for r in self.results if r.status == EvalStatus.INCORRECT]
 
     @property
-    def not_applied(self) -> List[EvalResult]:
+    def not_applied(self) -> list[EvalResult]:
         return [r for r in self.results if r.status == EvalStatus.NOT_APPLIED]

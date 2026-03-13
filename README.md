@@ -1,5 +1,7 @@
 # KernelPatcher
 
+[![CI](https://github.com/mattschu22/KernelPatchAgent/actions/workflows/ci.yml/badge.svg)](https://github.com/mattschu22/KernelPatchAgent/actions/workflows/ci.yml)
+
 An agentic AI system that automatically generates patches for Linux kernel bugs. Given a crash report and the relevant source files, KernelPatcher produces a corrected version of the code and evaluates it against a kernel build/test infrastructure.
 
 ## Architecture

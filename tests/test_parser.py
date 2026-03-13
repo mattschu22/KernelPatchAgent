@@ -20,6 +20,7 @@ def parser():
 # remove_line_numbers
 # ---------------------------------------------------------------------------
 
+
 class TestRemoveLineNumbers:
     def test_strips_leading_numbers(self, parser):
         text = "1 #include <linux/kernel.h>\n2 int main() {}"
@@ -44,6 +45,7 @@ class TestRemoveLineNumbers:
 # ---------------------------------------------------------------------------
 # parse_input
 # ---------------------------------------------------------------------------
+
 
 class TestParseInput:
     def test_single_file(self, parser):
@@ -79,6 +81,7 @@ class TestParseInput:
 # parse_response
 # ---------------------------------------------------------------------------
 
+
 class TestParseResponse:
     def test_single_file(self, parser):
         result = parser.parse_response(SAMPLE_RESPONSE_TEXT)
@@ -110,6 +113,7 @@ class TestParseResponse:
 # ---------------------------------------------------------------------------
 # Round-trip: parse_input -> patch -> parse_response
 # ---------------------------------------------------------------------------
+
 
 class TestRoundTrip:
     def test_filenames_match(self, parser):

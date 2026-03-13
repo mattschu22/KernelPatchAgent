@@ -5,10 +5,10 @@ from __future__ import annotations
 import json
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, List, Optional, Protocol
+from typing import Protocol
 from urllib import parse, request
 
-from kernel_patcher.config import ModelBackend, PipelineConfig, SYSTEM_PROMPT
+from kernel_patcher.config import SYSTEM_PROMPT, ModelBackend, PipelineConfig
 from kernel_patcher.models import BugInstance, PatchResponse
 from kernel_patcher.parser import Parser
 
@@ -38,7 +38,8 @@ class OpenAIClient:
                 {"role": "user", "content": user_prompt},
             ],
         )
-        return completion.choices[0].message.content
+        content = completion.choices[0].message.content
+        return content or ""
 
 
 class AnthropicClient:
@@ -58,7 +59,8 @@ class AnthropicClient:
             messages=[{"role": "user", "content": user_prompt}],
             model=self._model,
         )
-        return completion.content[0].text
+        text: str = completion.content[0].text
+        return text
 
 
 class CustomAgentClient:
@@ -68,11 +70,14 @@ class CustomAgentClient:
         self._base_url = base_url
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
-        combined = f"<SYS PROMPT>{system_prompt}</SYS PROMPT>\n<USER PROMPT>{user_prompt}</USER PROMPT>"
+        combined = (
+            f"<SYS PROMPT>{system_prompt}</SYS PROMPT>\n<USER PROMPT>{user_prompt}</USER PROMPT>"
+        )
         params = parse.urlencode({"input": combined})
         url = f"{self._base_url}/agents/orchestrator?{params}"
         with request.urlopen(url) as resp:
-            return json.loads(resp.read().decode("utf-8"))["output"]
+            result: str = json.loads(resp.read().decode("utf-8"))["output"]
+            return result
 
 
 def build_user_prompt(bug: BugInstance) -> str:
@@ -114,10 +119,10 @@ def run_inference_single(
 
 
 def run_inference(
-    bugs: List[BugInstance],
+    bugs: list[BugInstance],
     config: PipelineConfig,
-    client: Optional[ModelClient] = None,
-) -> List[PatchResponse]:
+    client: ModelClient | None = None,
+) -> list[PatchResponse]:
     """Run parallel inference across all bug instances.
 
     Args:
@@ -132,7 +137,7 @@ def run_inference(
         client = create_client(config)
     parser = Parser()
 
-    responses: Dict[str, PatchResponse] = {}
+    responses: dict[str, PatchResponse] = {}
 
     def _infer(bug: BugInstance) -> PatchResponse:
         return run_inference_single(client, bug, parser)

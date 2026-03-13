@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Dict, Optional
+from typing import Any
 
 import httpx
 from agents import Agent, Runner
@@ -21,9 +21,9 @@ class AgentRegistry:
 
     def __init__(self, config: PipelineConfig):
         self.config = config
-        self.agents: Dict[str, Agent] = {}
-        self.slug_to_name: Dict[str, str] = {}
-        self._descriptions: Dict[str, str] = {}
+        self.agents: dict[str, Agent] = {}
+        self.slug_to_name: dict[str, str] = {}
+        self._descriptions: dict[str, str] = {}
 
     async def call_subagent_http(self, agent_name: str, agent_input: str) -> str:
         """Call a subagent via HTTP GET request."""
@@ -35,19 +35,18 @@ class AgentRegistry:
                 response = await client.get(endpoint, params=params)
                 response.raise_for_status()
             except httpx.HTTPError as http_err:
-                raise RuntimeError(
-                    f"{agent_name} HTTP request failed: {http_err}"
-                ) from http_err
+                raise RuntimeError(f"{agent_name} HTTP request failed: {http_err}") from http_err
 
         content_type = response.headers.get("Content-Type", "")
         if "application/json" in content_type:
             try:
-                return response.json().get("output", response.text)
+                result: str = response.json().get("output", response.text)
+                return result
             except json.JSONDecodeError:
                 return response.text
         return response.text
 
-    def _build_subagent_tool(self, agent_name: str):
+    def _build_subagent_tool(self, agent_name: str) -> Any:
         """Create a function_tool that calls a subagent via HTTP."""
         description = self._descriptions[agent_name]
 
@@ -61,7 +60,7 @@ class AgentRegistry:
 
         return call_subagent
 
-    def _get_additional_tools(self, agent_name: str) -> list:
+    def _get_additional_tools(self, agent_name: str) -> list[Any]:
         """Get extra tools for specific agents."""
         tools = []
         if agent_name == "Elixir":
@@ -70,7 +69,7 @@ class AgentRegistry:
             tools.append(build_kernel_org_search_tool())
         return tools
 
-    def _get_subagent_tools(self, agent_name: str) -> list:
+    def _get_subagent_tools(self, agent_name: str) -> list[Any]:
         """Get subagent call tools based on the hierarchy."""
         tools = []
         for i, level in enumerate(AGENT_LEVELS[:-1]):
@@ -90,14 +89,14 @@ class AgentRegistry:
             self.agents[name] = Agent(name=name, instructions=instructions, tools=tools)
             self.slug_to_name[slugify(name)] = name
 
-    def get_by_slug(self, slug: str) -> Optional[Agent]:
+    def get_by_slug(self, slug: str) -> Agent | None:
         """Look up an agent by its URL slug."""
         name = self.slug_to_name.get(slug)
         if name is None:
             return None
         return self.agents.get(name)
 
-    def get_by_name(self, name: str) -> Optional[Agent]:
+    def get_by_name(self, name: str) -> Agent | None:
         """Look up an agent by its display name."""
         return self.agents.get(name)
 

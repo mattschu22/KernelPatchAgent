@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import json
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 from agents import Runner
 from fastapi import FastAPI, HTTPException
@@ -21,7 +25,7 @@ def create_app(config: PipelineConfig | None = None) -> FastAPI:
         config = PipelineConfig()
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI):
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         global _registry
         _registry = AgentRegistry(config)
         _registry.build_all()
@@ -31,7 +35,7 @@ def create_app(config: PipelineConfig | None = None) -> FastAPI:
     app = FastAPI(lifespan=lifespan)
 
     @app.get("/agents/{agent_slug}")
-    async def invoke_agent(agent_slug: str, input: str):
+    async def invoke_agent(agent_slug: str, input: str) -> dict[str, str]:
         if _registry is None:
             raise HTTPException(status_code=503, detail="Server not ready")
 
@@ -53,7 +57,7 @@ def create_app(config: PipelineConfig | None = None) -> FastAPI:
         return {"agent": agent.name, "output": response_output}
 
     @app.get("/health")
-    async def health():
+    async def health() -> dict[str, Any]:
         return {"status": "ok", "agents": list(_registry.agents.keys()) if _registry else []}
 
     return app

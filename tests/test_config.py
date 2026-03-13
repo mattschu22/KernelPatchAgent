@@ -1,8 +1,5 @@
 """Tests for kernel_patcher.config — zero API tokens."""
 
-import pytest
-from pathlib import Path
-
 from kernel_patcher.config import (
     AGENT_LEVELS,
     ALL_AGENTS,

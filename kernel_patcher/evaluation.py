@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Dict, List
+from typing import TYPE_CHECKING, Any
 
-from kernel_patcher.config import PipelineConfig
 from kernel_patcher.models import EvalJob, EvalResult, EvalStatus
+
+if TYPE_CHECKING:
+    from kernel_patcher.config import PipelineConfig
 
 logger = logging.getLogger(__name__)
 
@@ -20,11 +22,12 @@ class KSuiteClient:
 
     def __init__(self, url: str):
         self._url = url
-        self._client = None
+        self._client: Any = None
 
-    def _get_client(self):
+    def _get_client(self) -> Any:
         if self._client is None:
             from KBDr.kclient import kGymClient
+
             self._client = kGymClient(self._url)
         return self._client
 
@@ -34,11 +37,11 @@ class KSuiteClient:
         Returns the job ID assigned by kSuite.
         """
         from KBDr.kclient import (
-            kJobRequest,
-            kBuilderArgument,
-            kVMManagerArgument,
             KernelGitCommit,
             Reproducer,
+            kBuilderArgument,
+            kJobRequest,
+            kVMManagerArgument,
         )
 
         ksrc = KernelGitCommit(
@@ -81,9 +84,7 @@ class KSuiteClient:
         status = client.get_job(JobId(job_id))
         return getattr(status, "status", "unknown")
 
-    def submit_all(
-        self, jobs: List[EvalJob], config: PipelineConfig
-    ) -> List[EvalJob]:
+    def submit_all(self, jobs: list[EvalJob], config: PipelineConfig) -> list[EvalJob]:
         """Submit all evaluation jobs and update their job_id and status."""
         for job in jobs:
             try:
@@ -95,21 +96,15 @@ class KSuiteClient:
         return jobs
 
     def poll_all(
-        self, jobs: List[EvalJob], poll_interval: float = 30.0, max_polls: int = 100
-    ) -> List[EvalJob]:
+        self, jobs: list[EvalJob], poll_interval: float = 30.0, max_polls: int = 100
+    ) -> list[EvalJob]:
         """Poll all jobs until completion or timeout."""
         for attempt in range(max_polls):
-            pending = [
-                j
-                for j in jobs
-                if j.status not in ("finished", "aborted", "submit_failed")
-            ]
+            pending = [j for j in jobs if j.status not in ("finished", "aborted", "submit_failed")]
             if not pending:
                 break
 
-            logger.info(
-                "Poll %d: %d jobs still pending", attempt + 1, len(pending)
-            )
+            logger.info("Poll %d: %d jobs still pending", attempt + 1, len(pending))
             for job in pending:
                 try:
                     job.status = self.poll_job(job.job_id)
@@ -121,7 +116,7 @@ class KSuiteClient:
         return jobs
 
 
-def classify_results(jobs: List[EvalJob]) -> List[EvalResult]:
+def classify_results(jobs: list[EvalJob]) -> list[EvalResult]:
     """Convert completed jobs into evaluation results.
 
     Jobs that finished successfully are CORRECT; aborted jobs are INCORRECT;
@@ -146,9 +141,9 @@ def classify_results(jobs: List[EvalJob]) -> List[EvalResult]:
     return results
 
 
-def results_to_dict(results: List[EvalResult]) -> Dict[str, List[int]]:
+def results_to_dict(results: list[EvalResult]) -> dict[str, list[int]]:
     """Convert results list to the {c: [...], i: [...], na: [...]} format."""
-    out: Dict[str, List[int]] = {"c": [], "i": [], "na": []}
+    out: dict[str, list[int]] = {"c": [], "i": [], "na": []}
     for i, r in enumerate(results):
         out[r.status.value].append(i)
     return out

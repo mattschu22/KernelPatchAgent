@@ -1,9 +1,8 @@
 """Tests for kernel_patcher.agents — mocked, zero API tokens."""
 
-import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import MagicMock, patch
 
-from kernel_patcher.config import PipelineConfig, slugify, ALL_AGENTS, AGENT_LEVELS
+from kernel_patcher.config import AGENT_LEVELS, ALL_AGENTS, PipelineConfig, slugify
 
 
 class TestSlugMapping:

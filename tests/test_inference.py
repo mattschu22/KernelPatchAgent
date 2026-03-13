@@ -1,23 +1,20 @@
 """Tests for kernel_patcher.inference — all API calls mocked, zero tokens used."""
 
-import sys
-
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from kernel_patcher.config import ModelBackend, PipelineConfig
 from kernel_patcher.inference import (
-    OpenAIClient,
     AnthropicClient,
     CustomAgentClient,
+    OpenAIClient,
     build_user_prompt,
     create_client,
     run_inference,
     run_inference_single,
 )
-from kernel_patcher.models import BugInstance, PatchResponse
+from kernel_patcher.models import BugInstance
 from kernel_patcher.parser import Parser
-from tests.conftest import FakeModelClient, SAMPLE_RESPONSE_TEXT
+from tests.conftest import SAMPLE_RESPONSE_TEXT, FakeModelClient
 
 
 class TestBuildUserPrompt:
@@ -117,9 +114,7 @@ class TestOpenAIClient:
         MockOpenAI.return_value = mock_client
         mock_choice = MagicMock()
         mock_choice.message.content = "patched code"
-        mock_client.chat.completions.create.return_value = MagicMock(
-            choices=[mock_choice]
-        )
+        mock_client.chat.completions.create.return_value = MagicMock(choices=[mock_choice])
 
         client = OpenAIClient()
         result = client.generate("system", "user")

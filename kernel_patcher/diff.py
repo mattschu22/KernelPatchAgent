@@ -6,8 +6,6 @@ import os
 import shutil
 import subprocess
 import tempfile
-from pathlib import Path
-from typing import Dict
 
 
 class DiffGenerator:
@@ -16,7 +14,7 @@ class DiffGenerator:
     def __init__(self, work_dir: str | None = None):
         self._work_dir = work_dir
 
-    def generate(self, old_files: Dict[str, str], new_files: Dict[str, str]) -> str:
+    def generate(self, old_files: dict[str, str], new_files: dict[str, str]) -> str:
         """Generate a unified diff between old and new file versions.
 
         Args:

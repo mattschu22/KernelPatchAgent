@@ -1,7 +1,5 @@
 """Tests for kernel_patcher.evaluation — zero API tokens, no kSuite needed."""
 
-import pytest
-
 from kernel_patcher.evaluation import classify_results, results_to_dict
 from kernel_patcher.models import EvalJob, EvalResult, EvalStatus
 
@@ -65,9 +63,7 @@ class TestResultsToDict:
         assert d == {"c": [], "i": [], "na": []}
 
     def test_all_correct(self):
-        results = [
-            EvalResult(instance_id=str(i), status=EvalStatus.CORRECT) for i in range(3)
-        ]
+        results = [EvalResult(instance_id=str(i), status=EvalStatus.CORRECT) for i in range(3)]
         d = results_to_dict(results)
         assert d["c"] == [0, 1, 2]
         assert d["i"] == []

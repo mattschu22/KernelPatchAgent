@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from typing import Dict
 
 
 class Parser:
@@ -32,7 +31,7 @@ class Parser:
                 lines[idx] = line.replace(match.group(), "", 1)[1:]
         return "\n".join(lines)
 
-    def parse_input(self, text: str) -> Dict[str, str]:
+    def parse_input(self, text: str) -> dict[str, str]:
         """Parse kBench input format into {filename: content} dict.
 
         Format:
@@ -42,7 +41,7 @@ class Parser:
             2 line2
             [end of FILE]
         """
-        ret: Dict[str, str] = {}
+        ret: dict[str, str] = {}
         while text:
             start_marker = "[start of "
             start_idx = text.find(start_marker)
@@ -67,11 +66,11 @@ class Parser:
             content = self.remove_line_numbers(text[content_start:content_end])
             ret[filename] = content
 
-            text = text[content_end + len(end_marker):]
+            text = text[content_end + len(end_marker) :]
 
         return ret
 
-    def parse_response(self, text: str) -> Dict[str, str]:
+    def parse_response(self, text: str) -> dict[str, str]:
         """Parse model response format into {filename: content} dict.
 
         Format:
@@ -79,7 +78,7 @@ class Parser:
             content
             </file>
         """
-        ret: Dict[str, str] = {}
+        ret: dict[str, str] = {}
         while text:
             start_marker = '<file path="'
             start_idx = text.find(start_marker)
@@ -100,6 +99,6 @@ class Parser:
             content = self.remove_line_numbers(text[content_start:content_end])
             ret[filename] = content
 
-            text = text[content_end + len("\n</file>"):]
+            text = text[content_end + len("\n</file>") :]
 
         return ret

@@ -5,13 +5,17 @@ from __future__ import annotations
 import urllib.parse
 
 import httpx
-from agents.tool import WebSearchTool, WebSearchToolFilters, function_tool
+from agents.tool import (  # type: ignore[attr-defined]
+    WebSearchTool,
+    WebSearchToolFilters,
+    function_tool,
+)
 
 BOOTLIN_BASE = "https://elixir.bootlin.com"
 BOOTLIN_TRUNCATE_LIMIT = 20_000
 
 
-def build_bootlin_fetch_tool():
+def build_bootlin_fetch_tool() -> object:
     """Build the fetch_bootlin tool for the Elixir agent."""
 
     @function_tool(
@@ -35,7 +39,7 @@ def build_bootlin_fetch_tool():
     return fetch_bootlin
 
 
-def build_kernel_org_search_tool():
+def build_kernel_org_search_tool() -> WebSearchTool:
     """Build a web search tool restricted to kernel.org."""
     return WebSearchTool(
         filters=WebSearchToolFilters(allowed_domains=["kernel.org"]),
