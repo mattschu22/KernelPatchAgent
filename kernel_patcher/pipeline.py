@@ -12,7 +12,8 @@ from pathlib import Path
 from kernel_patcher.config import PipelineConfig
 from kernel_patcher.diff import DiffGenerator
 from kernel_patcher.evaluation import KSuiteClient, classify_results, results_to_dict
-from kernel_patcher.inference import ModelClient, run_inference
+from kernel_patcher.inference import ModelClient, create_client, run_inference
+from kernel_patcher.metrics import PipelineMetrics
 from kernel_patcher.models import (
     BugInstance,
     EvalJob,
@@ -21,6 +22,7 @@ from kernel_patcher.models import (
     PipelineResult,
 )
 from kernel_patcher.parser import Parser
+from kernel_patcher.retry import retry_failed_patches
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +39,7 @@ class KernelPatchPipeline:
         self.client = client
         self.parser = Parser()
         self.diff_gen = DiffGenerator()
+        self.metrics = PipelineMetrics()
 
     def load_bugs(self, data_path: str | Path | None = None) -> list[BugInstance]:
         """Load bug instances from a JSON data file.
@@ -145,8 +148,10 @@ class KernelPatchPipeline:
         reproducers: dict[str, str] | None = None,
         configs: dict[str, str] | None = None,
         syz_checks: dict[str, str] | None = None,
+        max_retries: int = 0,
+        compilation_errors: dict[str, str] | None = None,
     ) -> PipelineResult:
-        """Run the full pipeline: inference -> diff -> evaluate.
+        """Run the full pipeline: inference -> diff -> evaluate -> retry.
 
         Args:
             bugs: List of bug instances to process.
@@ -155,25 +160,65 @@ class KernelPatchPipeline:
             reproducers: Map of instance_id -> C reproducer code.
             configs: Map of instance_id -> kernel config.
             syz_checks: Map of instance_id -> syzkaller checkout.
+            max_retries: Number of retry attempts for compilation failures.
+            compilation_errors: Map of instance_id -> compiler error text
+                for the feedback loop.
 
         Returns:
             PipelineResult with responses and (optionally) evaluation results.
         """
         result = PipelineResult()
 
-        logger.info("Starting inference for %d bugs", len(bugs))
-        responses = self.run_inference(bugs)
-        result.responses = responses
+        with self.metrics.track_stage("inference"):
+            logger.info("Starting inference for %d bugs", len(bugs))
+            responses = self.run_inference(bugs)
+            result.responses = responses
 
-        logger.info("Generating diffs")
-        self.generate_diffs(bugs, responses)
+        with self.metrics.track_stage("diff_generation"):
+            logger.info("Generating diffs")
+            self.generate_diffs(bugs, responses)
 
         if not skip_eval:
-            logger.info("Building evaluation jobs")
-            jobs = self.build_eval_jobs(bugs, responses, commits, reproducers, configs, syz_checks)
-            logger.info("Submitting %d jobs for evaluation", len(jobs))
-            result.results = self.evaluate(jobs)
+            with self.metrics.track_stage("evaluation"):
+                logger.info("Building evaluation jobs")
+                jobs = self.build_eval_jobs(
+                    bugs,
+                    responses,
+                    commits,
+                    reproducers,
+                    configs,
+                    syz_checks,
+                )
+                logger.info("Submitting %d jobs for evaluation", len(jobs))
+                result.results = self.evaluate(jobs)
 
+            # Retry compilation failures with feedback
+            if max_retries > 0 and result.results:
+                with self.metrics.track_stage("retry"):
+                    client = self.client or create_client(self.config)
+                    result.responses = retry_failed_patches(
+                        bugs=bugs,
+                        responses=result.responses,
+                        results=result.results,
+                        client=client,
+                        parser=self.parser,
+                        compilation_errors=compilation_errors,
+                        max_retries=max_retries,
+                    )
+                    # Re-generate diffs and re-evaluate retried patches
+                    self.generate_diffs(bugs, result.responses)
+                    jobs = self.build_eval_jobs(
+                        bugs,
+                        result.responses,
+                        commits,
+                        reproducers,
+                        configs,
+                        syz_checks,
+                    )
+                    if jobs:
+                        result.results = self.evaluate(jobs)
+
+        self.metrics.log_summary()
         return result
 
     def save_responses(self, responses: list[PatchResponse], path: str | Path) -> None:
