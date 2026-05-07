@@ -1,5 +1,6 @@
 """Tests for kernel_patcher.inference — all API calls mocked, zero tokens used."""
 
+import pytest
 from unittest.mock import MagicMock, patch
 
 from kernel_patcher.config import ModelBackend, PipelineConfig
@@ -9,6 +10,7 @@ from kernel_patcher.inference import (
     OpenAIClient,
     build_user_prompt,
     create_client,
+    generate_with_retry,
     run_inference,
     run_inference_single,
 )
@@ -105,6 +107,172 @@ class TestRunInference:
         # One should have failed gracefully
         empty = [r for r in results if r.raw_response == ""]
         assert len(empty) >= 1
+
+
+class TestGenerateWithRetry:
+    def test_returns_first_success(self):
+        client = FakeModelClient(default="ok")
+        sleeps: list[float] = []
+        result = generate_with_retry(
+            client, "sys", "user",
+            max_retries=3, initial_backoff=1.0, max_backoff=10.0,
+            sleep=sleeps.append,
+        )
+        assert result == "ok"
+        assert sleeps == []
+        assert len(client.calls) == 1
+
+    def test_retries_then_succeeds(self):
+        attempts = {"n": 0}
+
+        class FlakeyClient:
+            def generate(self, sys, user):
+                attempts["n"] += 1
+                if attempts["n"] < 3:
+                    raise RuntimeError("transient")
+                return "ok"
+
+        sleeps: list[float] = []
+        result = generate_with_retry(
+            FlakeyClient(), "sys", "user",
+            max_retries=5, initial_backoff=1.0, max_backoff=10.0,
+            sleep=sleeps.append,
+        )
+        assert result == "ok"
+        assert attempts["n"] == 3
+        assert len(sleeps) == 2
+
+    def test_exhausts_retries_and_raises(self):
+        class AlwaysFails:
+            def generate(self, sys, user):
+                raise RuntimeError("boom")
+
+        sleeps: list[float] = []
+        with pytest.raises(RuntimeError, match="boom"):
+            generate_with_retry(
+                AlwaysFails(), "sys", "user",
+                max_retries=2, initial_backoff=0.1, max_backoff=1.0,
+                sleep=sleeps.append,
+            )
+        # max_retries=2 means 3 total attempts, so 2 sleeps between them
+        assert len(sleeps) == 2
+
+    def test_zero_retries_means_one_attempt(self):
+        class AlwaysFails:
+            def generate(self, sys, user):
+                raise RuntimeError("boom")
+
+        sleeps: list[float] = []
+        with pytest.raises(RuntimeError):
+            generate_with_retry(
+                AlwaysFails(), "sys", "user",
+                max_retries=0, initial_backoff=0.1, max_backoff=1.0,
+                sleep=sleeps.append,
+            )
+        assert sleeps == []
+
+    def test_rate_limit_honors_retry_after(self):
+        class RateLimitError(Exception):
+            def __init__(self):
+                super().__init__("429 Too Many Requests")
+                self.status_code = 429
+                self.headers = {"Retry-After": "7"}
+
+        attempts = {"n": 0}
+
+        class RateLimitedClient:
+            def generate(self, sys, user):
+                attempts["n"] += 1
+                if attempts["n"] == 1:
+                    raise RateLimitError()
+                return "ok"
+
+        sleeps: list[float] = []
+        result = generate_with_retry(
+            RateLimitedClient(), "sys", "user",
+            max_retries=3, initial_backoff=1.0, max_backoff=60.0,
+            sleep=sleeps.append,
+        )
+        assert result == "ok"
+        assert sleeps == [7.0]
+
+    def test_rate_limit_capped_by_max_backoff(self):
+        class RateLimitError(Exception):
+            def __init__(self):
+                super().__init__("429")
+                self.status_code = 429
+                self.retry_after = 999
+
+        attempts = {"n": 0}
+
+        class Client:
+            def generate(self, sys, user):
+                attempts["n"] += 1
+                if attempts["n"] == 1:
+                    raise RateLimitError()
+                return "ok"
+
+        sleeps: list[float] = []
+        generate_with_retry(
+            Client(), "sys", "user",
+            max_retries=2, initial_backoff=1.0, max_backoff=5.0,
+            sleep=sleeps.append,
+        )
+        assert sleeps == [5.0]
+
+
+class TestRunInferenceSingleRetries:
+    def test_recovers_from_transient_error(self, sample_bugs):
+        attempts = {"n": 0}
+
+        class FlakeyClient:
+            def generate(self, sys, user):
+                attempts["n"] += 1
+                if attempts["n"] == 1:
+                    raise RuntimeError("transient")
+                return SAMPLE_RESPONSE_TEXT
+
+        with patch("kernel_patcher.inference.time.sleep"):
+            result = run_inference_single(
+                FlakeyClient(), sample_bugs[0], Parser(),
+                max_retries=2, initial_backoff=0.01, max_backoff=0.1,
+            )
+        assert result.raw_response == SAMPLE_RESPONSE_TEXT
+        assert attempts["n"] == 2
+
+    def test_returns_empty_after_exhausting_retries(self, sample_bugs):
+        class AlwaysFails:
+            def generate(self, sys, user):
+                raise RuntimeError("boom")
+
+        with patch("kernel_patcher.inference.time.sleep"):
+            result = run_inference_single(
+                AlwaysFails(), sample_bugs[0], Parser(),
+                max_retries=2, initial_backoff=0.01, max_backoff=0.1,
+            )
+        assert result.raw_response == ""
+        assert result.patched_files == {}
+
+
+class TestRunInferenceConfigRetries:
+    def test_uses_config_retry_settings(self, sample_bugs, config):
+        attempts: dict[str, int] = {}
+
+        class FlakeyClient:
+            def generate(self, sys, user):
+                key = "smc" if "smc_sysctl" in user else "ext4"
+                attempts[key] = attempts.get(key, 0) + 1
+                if attempts[key] == 1:
+                    raise RuntimeError("transient")
+                return SAMPLE_RESPONSE_TEXT
+
+        config.max_inference_retries = 2
+        config.inference_initial_backoff = 0.01
+        config.inference_max_backoff = 0.05
+        with patch("kernel_patcher.inference.time.sleep"):
+            results = run_inference(sample_bugs, config, client=FlakeyClient())
+        assert all(r.raw_response == SAMPLE_RESPONSE_TEXT for r in results)
+        assert attempts == {"smc": 2, "ext4": 2}
 
 
 class TestOpenAIClient:

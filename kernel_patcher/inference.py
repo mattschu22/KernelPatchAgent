@@ -4,15 +4,107 @@ from __future__ import annotations
 
 import json
 import logging
+import random
+import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Protocol
 from urllib import parse, request
+from urllib.error import HTTPError
 
 from kernel_patcher.config import SYSTEM_PROMPT, ModelBackend, PipelineConfig
 from kernel_patcher.models import BugInstance, PatchResponse
 from kernel_patcher.parser import Parser
 
 logger = logging.getLogger(__name__)
+
+
+def _is_rate_limit(exc: BaseException) -> bool:
+    """Detect rate-limit errors across SDKs without hard-importing them."""
+    if isinstance(exc, HTTPError) and exc.code == 429:
+        return True
+    if getattr(exc, "status_code", None) == 429:
+        return True
+    if type(exc).__name__ == "RateLimitError":
+        return True
+    return False
+
+
+def _retry_after_seconds(exc: BaseException) -> float | None:
+    """Pull a Retry-After hint off an exception if the SDK exposes one."""
+    headers = getattr(getattr(exc, "response", None), "headers", None)
+    if headers is None:
+        headers = getattr(exc, "headers", None)
+    if headers is not None:
+        try:
+            value = headers.get("Retry-After") or headers.get("retry-after")
+        except AttributeError:
+            value = None
+        if value is not None:
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+    direct = getattr(exc, "retry_after", None)
+    if direct is not None:
+        try:
+            return float(direct)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _compute_backoff(
+    attempt: int,
+    initial: float,
+    cap: float,
+    retry_after: float | None,
+) -> float:
+    """Exponential backoff with jitter, overridden by Retry-After when present."""
+    if retry_after is not None and retry_after > 0:
+        return min(retry_after, cap)
+    base = min(initial * (2 ** (attempt - 1)), cap)
+    return base * (0.5 + random.random() / 2)
+
+
+def generate_with_retry(
+    client: ModelClient,
+    system_prompt: str,
+    user_prompt: str,
+    max_retries: int,
+    initial_backoff: float,
+    max_backoff: float,
+    instance_id: str = "",
+    sleep: Callable[[float], None] = time.sleep,
+) -> str:
+    """Call ``client.generate`` with retry + backoff on transient errors.
+
+    Re-raises the last exception if all attempts fail.
+    """
+    last_exc: BaseException | None = None
+    total_attempts = max_retries + 1
+    for attempt in range(1, total_attempts + 1):
+        try:
+            return client.generate(system_prompt, user_prompt)
+        except Exception as exc:
+            last_exc = exc
+            if attempt >= total_attempts:
+                break
+            rate_limited = _is_rate_limit(exc)
+            retry_after = _retry_after_seconds(exc) if rate_limited else None
+            delay = _compute_backoff(attempt, initial_backoff, max_backoff, retry_after)
+            logger.warning(
+                "Inference attempt %d/%d for %s failed (%s%s); sleeping %.2fs",
+                attempt,
+                total_attempts,
+                instance_id or "<unknown>",
+                "rate limited: " if rate_limited else "",
+                exc,
+                delay,
+            )
+            sleep(delay)
+    assert last_exc is not None
+    raise last_exc
 
 
 class ModelClient(Protocol):
@@ -101,13 +193,34 @@ def run_inference_single(
     client: ModelClient,
     bug: BugInstance,
     parser: Parser,
+    max_retries: int = 0,
+    initial_backoff: float = 1.0,
+    max_backoff: float = 60.0,
 ) -> PatchResponse:
-    """Run inference on a single bug instance."""
+    """Run inference on a single bug instance.
+
+    Transient errors (including rate limits) are retried up to ``max_retries``
+    times with exponential backoff. After exhausting retries, an empty
+    PatchResponse is returned so the rest of the pipeline can proceed.
+    """
     user_prompt = build_user_prompt(bug)
     try:
-        raw = client.generate(SYSTEM_PROMPT, user_prompt)
+        raw = generate_with_retry(
+            client,
+            SYSTEM_PROMPT,
+            user_prompt,
+            max_retries=max_retries,
+            initial_backoff=initial_backoff,
+            max_backoff=max_backoff,
+            instance_id=bug.instance_id,
+        )
     except Exception as e:
-        logger.error("Inference failed for %s: %s", bug.instance_id, e)
+        logger.error(
+            "Inference failed for %s after %d retries: %s",
+            bug.instance_id,
+            max_retries,
+            e,
+        )
         return PatchResponse(instance_id=bug.instance_id, raw_response="")
 
     patched = parser.parse_response(raw)
@@ -140,7 +253,14 @@ def run_inference(
     responses: dict[str, PatchResponse] = {}
 
     def _infer(bug: BugInstance) -> PatchResponse:
-        return run_inference_single(client, bug, parser)
+        return run_inference_single(
+            client,
+            bug,
+            parser,
+            max_retries=config.max_inference_retries,
+            initial_backoff=config.inference_initial_backoff,
+            max_backoff=config.inference_max_backoff,
+        )
 
     with ThreadPoolExecutor(max_workers=config.max_workers) as executor:
         futures = {executor.submit(_infer, bug): bug for bug in bugs}

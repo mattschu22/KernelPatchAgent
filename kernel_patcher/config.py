@@ -86,6 +86,11 @@ class PipelineConfig:
     ksuite_url: str = "http://localhost:8000"
     git_url: str = "https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git"
 
+    # Inference retry / backoff (transient API errors, including rate limits)
+    max_inference_retries: int = 3
+    inference_initial_backoff: float = 1.0
+    inference_max_backoff: float = 60.0
+
     def __post_init__(self) -> None:
         if self.prompts_dir is None:
             self.prompts_dir = self.project_root / "prompts"
